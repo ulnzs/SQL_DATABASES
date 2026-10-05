@@ -1,0 +1,88 @@
+CREATE TABLE grand_prix
+(
+    id serial PRIMARY KEY,
+    season_year integer NOT NULL,
+    name_event varchar(64) NOT NULL,
+    num integer NOT NULL,
+    date_event date NOT NULL,
+    country_event varchar(64) NOT NULL,
+    place_event varchar(64) NOT NULL,
+
+    UNIQUE(season_year, num),
+    UNIQUE(season_year, country_event),
+
+    CHECK(season_year = EXTRACT(YEAR FROM date_event))
+);
+
+
+CREATE TABLE drivers
+(
+    id serial PRIMARY KEY,
+    first_name varchar(64) NOT NULL,
+    last_name varchar(64) NOT NULL,
+    date_birth date NOT NULL,
+    country_driver varchar(64) NOT NULL,
+    num_victories integer NOT NULL DEFAULT 0,
+
+    CHECK(num_victories >= 0)
+);
+
+
+CREATE TABLE teams
+(
+    id serial PRIMARY KEY,
+    name varchar(64) NOT NULL UNIQUE,
+    engine_name varchar(64) NOT NULL,
+    country_team varchar(64) NOT NULL
+);
+
+
+CREATE TABLE team_members
+(
+    id serial PRIMARY KEY,
+
+    grand_prix_id integer NOT NULL REFERENCES grand_prix(id),
+    team_id integer NOT NULL REFERENCES teams(id),
+    driver_id integer NOT NULL REFERENCES drivers(id),
+
+    role varchar(16) NOT NULL
+        CHECK(role IN ('main', 'substitute')),
+
+    car_number integer,
+
+    UNIQUE(grand_prix_id, driver_id),
+    UNIQUE(grand_prix_id, team_id, car_number),
+
+    CHECK(
+        (role = 'main' AND car_number IS NOT NULL)
+        OR
+        (role = 'substitute' AND car_number IS NULL)
+    )
+);
+
+
+CREATE TABLE race_results
+(
+    grand_prix_id integer NOT NULL REFERENCES grand_prix(id),
+    driver_id integer NOT NULL REFERENCES drivers(id),
+
+    driver_place integer NOT NULL,
+    race_points numeric(5, 2) NOT NULL DEFAULT 0,
+
+    race_time interval,
+    retirement_reason text,
+
+    lead_laps integer NOT NULL DEFAULT 0,
+
+    PRIMARY KEY(grand_prix_id, driver_id),
+
+    CHECK(driver_place > 0),
+    CHECK(race_points >= 0),
+    CHECK(lead_laps >= 0),
+
+    CHECK(
+        (race_time IS NOT NULL AND retirement_reason IS NULL)
+        OR
+        (race_time IS NULL AND retirement_reason IS NOT NULL)
+    )
+);

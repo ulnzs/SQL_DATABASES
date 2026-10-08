@@ -1,0 +1,284 @@
+/*
+ФИО: Загорнякова Ульяна Дмитриевна
+Вариант: 1
+
+Условия задания:
+
+1. Выбрать всех гонщиков, которые заняли первое место,
+   но заработали меньше 26 очков, отсортировав данные
+   по убыванию кругов лидирования.
+
+2. Выбрать имена и фамилии всех гонщиков и общее количество
+   их очков, набранных по результатам гонок,
+   и расположить их в порядке убывания.
+*/
+
+
+DROP TABLE IF EXISTS race_results CASCADE;
+DROP TABLE IF EXISTS team_members CASCADE;
+DROP TABLE IF EXISTS teams CASCADE;
+DROP TABLE IF EXISTS drivers CASCADE;
+DROP TABLE IF EXISTS grand_prix CASCADE;
+
+
+CREATE TABLE grand_prix
+(
+    id serial PRIMARY KEY,
+    season_year integer NOT NULL,
+    name_event varchar(64) NOT NULL,
+    num integer NOT NULL,
+    date_event date NOT NULL,
+    country_event varchar(64) NOT NULL,
+    place_event varchar(64) NOT NULL,
+
+    UNIQUE (season_year, num),
+    UNIQUE (season_year, country_event),
+
+    CHECK (num > 0),
+    CHECK (season_year = EXTRACT(YEAR FROM date_event))
+);
+
+
+CREATE TABLE drivers
+(
+    id serial PRIMARY KEY,
+    first_name varchar(64) NOT NULL,
+    last_name varchar(64) NOT NULL,
+    date_birth date NOT NULL,
+    country_driver varchar(64) NOT NULL,
+    num_victories integer NOT NULL DEFAULT 0,
+
+    CHECK (date_birth <= CURRENT_DATE),
+    CHECK (num_victories >= 0)
+);
+
+
+CREATE TABLE teams
+(
+    id serial PRIMARY KEY,
+    name varchar(64) NOT NULL UNIQUE,
+    engine_name varchar(64) NOT NULL,
+    country_team varchar(64) NOT NULL
+);
+
+
+CREATE TABLE team_members
+(
+    id serial PRIMARY KEY,
+
+    grand_prix_id integer NOT NULL REFERENCES grand_prix(id),
+    team_id integer NOT NULL REFERENCES teams(id),
+    driver_id integer NOT NULL REFERENCES drivers(id),
+
+    role varchar(16) NOT NULL
+        CHECK (role IN ('main', 'substitute')),
+
+    car_number integer,
+
+    UNIQUE (grand_prix_id, driver_id),
+    UNIQUE (grand_prix_id, team_id, car_number),
+
+    CHECK (
+        (role = 'main'
+            AND car_number IS NOT NULL
+            AND car_number BETWEEN 1 AND 99)
+        OR
+        (role = 'substitute'
+            AND car_number IS NULL)
+    )
+);
+
+
+CREATE TABLE race_results
+(
+    grand_prix_id integer NOT NULL,
+    driver_id integer NOT NULL,
+
+    driver_place integer NOT NULL,
+    race_points numeric(5, 2) NOT NULL DEFAULT 0,
+
+    race_time interval,
+    retirement_reason text,
+
+    lead_laps integer NOT NULL DEFAULT 0,
+
+    PRIMARY KEY (grand_prix_id, driver_id),
+
+    FOREIGN KEY (grand_prix_id, driver_id)
+        REFERENCES team_members (grand_prix_id, driver_id),
+
+    UNIQUE (grand_prix_id, driver_place),
+
+    CHECK (driver_place > 0),
+    CHECK (race_points >= 0),
+    CHECK (lead_laps >= 0),
+
+    CHECK (
+        (race_time IS NOT NULL AND retirement_reason IS NULL)
+        OR
+        (race_time IS NULL AND retirement_reason IS NOT NULL)
+    )
+);
+
+
+INSERT INTO grand_prix
+    (season_year, name_event, num, date_event, country_event, place_event)
+VALUES
+    (2024, 'Bahrain Grand Prix', 1, '2024-03-02', 'Bahrain', 'Sakhir'),
+    (2024, 'Saudi Arabian Grand Prix', 2, '2024-03-09', 'Saudi Arabia', 'Jeddah'),
+    (2024, 'Australian Grand Prix', 3, '2024-03-24', 'Australia', 'Melbourne'),
+    (2024, 'Japanese Grand Prix', 4, '2024-04-07', 'Japan', 'Suzuka'),
+    (2024, 'Chinese Grand Prix', 5, '2024-04-21', 'China', 'Shanghai');
+
+
+INSERT INTO drivers
+    (first_name, last_name, date_birth, country_driver, num_victories)
+VALUES
+    ('Max', 'Verstappen', '1997-09-30', 'Netherlands', 61),
+    ('Sergio', 'Perez', '1990-01-26', 'Mexico', 6),
+    ('Carlos', 'Sainz', '1994-09-01', 'Spain', 3),
+    ('Charles', 'Leclerc', '1997-10-16', 'Monaco', 6),
+    ('Lando', 'Norris', '1999-11-13', 'United Kingdom', 4),
+    ('Oscar', 'Piastri', '2001-04-06', 'Australia', 2),
+    ('Lewis', 'Hamilton', '1985-01-07', 'United Kingdom', 105),
+    ('Fernando', 'Alonso', '1981-07-29', 'Spain', 32),
+    ('Yuki', 'Tsunoda', '2000-05-11', 'Japan', 0),
+    ('Daniel', 'Ricciardo', '1989-07-01', 'Australia', 8);
+
+
+INSERT INTO teams
+    (name, engine_name, country_team)
+VALUES
+    ('Red Bull Racing', 'Honda RBPT', 'Austria'),
+    ('Ferrari', 'Ferrari', 'Italy'),
+    ('McLaren', 'Mercedes', 'United Kingdom'),
+    ('Mercedes', 'Mercedes', 'Germany'),
+    ('Aston Martin', 'Mercedes', 'United Kingdom');
+
+
+INSERT INTO team_members
+    (grand_prix_id, team_id, driver_id, role, car_number)
+VALUES
+    (1, 1, 1, 'main', 1),
+    (1, 1, 2, 'main', 11),
+    (1, 2, 3, 'main', 55),
+    (1, 2, 4, 'main', 16),
+    (1, 3, 5, 'main', 4),
+    (1, 3, 6, 'main', 81),
+    (1, 4, 7, 'main', 44),
+    (1, 5, 8, 'main', 14),
+
+    (2, 1, 1, 'main', 1),
+    (2, 1, 2, 'main', 11),
+    (2, 2, 4, 'main', 16),
+    (2, 3, 5, 'main', 4),
+    (2, 3, 6, 'main', 81),
+    (2, 4, 7, 'main', 44),
+    (2, 5, 8, 'main', 14),
+
+    (3, 1, 1, 'main', 1),
+    (3, 1, 2, 'main', 11),
+    (3, 2, 3, 'main', 55),
+    (3, 2, 4, 'main', 16),
+    (3, 3, 5, 'main', 4),
+    (3, 3, 6, 'main', 81),
+    (3, 4, 7, 'main', 44),
+    (3, 5, 8, 'main', 14),
+
+    (4, 1, 1, 'main', 1),
+    (4, 1, 2, 'main', 11),
+    (4, 2, 3, 'main', 55),
+    (4, 2, 4, 'main', 16),
+    (4, 3, 5, 'main', 4),
+    (4, 3, 6, 'main', 81),
+    (4, 4, 7, 'main', 44),
+    (4, 5, 8, 'main', 14),
+
+    (5, 1, 1, 'main', 1),
+    (5, 1, 2, 'main', 11),
+    (5, 2, 3, 'main', 55),
+    (5, 2, 4, 'main', 16),
+    (5, 3, 5, 'main', 4),
+    (5, 3, 6, 'main', 81),
+    (5, 4, 7, 'main', 44),
+    (5, 5, 8, 'main', 14);
+
+
+INSERT INTO race_results
+    (grand_prix_id, driver_id, driver_place, race_points,
+     race_time, retirement_reason, lead_laps)
+VALUES
+    (1, 1, 1, 26, INTERVAL '1 hour 31 minutes 44.742 seconds', NULL, 57),
+    (1, 2, 2, 18, INTERVAL '1 hour 32 minutes 7.199 seconds', NULL, 0),
+    (1, 3, 3, 15, INTERVAL '1 hour 32 minutes 9.852 seconds', NULL, 0),
+    (1, 4, 4, 12, INTERVAL '1 hour 32 minutes 24.411 seconds', NULL, 0),
+    (1, 5, 6, 8, INTERVAL '1 hour 32 minutes 33.200 seconds', NULL, 0),
+    (1, 7, 7, 6, INTERVAL '1 hour 32 minutes 35.066 seconds', NULL, 0),
+    (1, 6, 8, 4, INTERVAL '1 hour 32 minutes 40.824 seconds', NULL, 0),
+    (1, 8, 9, 2, INTERVAL '1 hour 32 minutes 59.629 seconds', NULL, 0),
+
+    (2, 1, 1, 25, INTERVAL '1 hour 20 minutes 43.273 seconds', NULL, 45),
+    (2, 2, 2, 18, INTERVAL '1 hour 20 minutes 56.916 seconds', NULL, 0),
+    (2, 4, 3, 16, INTERVAL '1 hour 21 minutes 1.912 seconds', NULL, 0),
+    (2, 6, 4, 12, INTERVAL '1 hour 21 minutes 15.280 seconds', NULL, 0),
+    (2, 8, 5, 10, INTERVAL '1 hour 21 minutes 19.032 seconds', NULL, 0),
+    (2, 5, 8, 4, INTERVAL '1 hour 21 minutes 28.981 seconds', NULL, 5),
+    (2, 7, 9, 2, INTERVAL '1 hour 21 minutes 30.664 seconds', NULL, 0),
+
+    (3, 3, 1, 25, INTERVAL '1 hour 20 minutes 26.843 seconds', NULL, 56),
+    (3, 4, 2, 19, INTERVAL '1 hour 20 minutes 29.209 seconds', NULL, 0),
+    (3, 5, 3, 15, INTERVAL '1 hour 20 minutes 32.747 seconds', NULL, 0),
+    (3, 6, 4, 12, INTERVAL '1 hour 21 minutes 2.613 seconds', NULL, 0),
+    (3, 2, 5, 10, INTERVAL '1 hour 21 minutes 23.152 seconds', NULL, 0),
+    (3, 8, 8, 4, INTERVAL '1 hour 22 minutes 7.835 seconds', NULL, 1),
+    (3, 7, 18, 0, NULL, 'Power Unit', 0),
+    (3, 1, 19, 0, NULL, 'Rear brakes', 1),
+
+    (4, 1, 1, 26, INTERVAL '1 hour 54 minutes 23.566 seconds', NULL, 47),
+    (4, 2, 2, 18, INTERVAL '1 hour 54 minutes 36.101 seconds', NULL, 0),
+    (4, 3, 3, 15, INTERVAL '1 hour 54 minutes 44.432 seconds', NULL, 2),
+    (4, 4, 4, 12, INTERVAL '1 hour 54 minutes 50.088 seconds', NULL, 4),
+    (4, 5, 5, 10, INTERVAL '1 hour 54 minutes 53.266 seconds', NULL, 0),
+    (4, 8, 6, 8, INTERVAL '1 hour 55 minutes 7.838 seconds', NULL, 0),
+    (4, 6, 8, 4, INTERVAL '1 hour 55 minutes 11.091 seconds', NULL, 0),
+    (4, 7, 9, 2, INTERVAL '1 hour 55 minutes 12.192 seconds', NULL, 0),
+
+    (5, 1, 1, 25, INTERVAL '1 hour 40 minutes 52.554 seconds', NULL, 51),
+    (5, 5, 2, 18, INTERVAL '1 hour 41 minutes 6.327 seconds', NULL, 5),
+    (5, 2, 3, 15, INTERVAL '1 hour 41 minutes 11.714 seconds', NULL, 0),
+    (5, 4, 4, 12, INTERVAL '1 hour 41 minutes 16.177 seconds', NULL, 0),
+    (5, 3, 5, 10, INTERVAL '1 hour 41 minutes 26.537 seconds', NULL, 0),
+    (5, 8, 7, 7, INTERVAL '1 hour 41 minutes 35.968 seconds', NULL, 0),
+    (5, 6, 8, 4, INTERVAL '1 hour 41 minutes 48.752 seconds', NULL, 0),
+    (5, 7, 9, 2, INTERVAL '1 hour 41 minutes 50.540 seconds', NULL, 0);
+
+
+-- Задание 1
+
+SELECT
+    d.first_name,
+    d.last_name,
+    rr.race_points,
+    rr.lead_laps
+FROM race_results rr
+JOIN drivers d
+    ON rr.driver_id = d.id
+WHERE rr.driver_place = 1
+  AND rr.race_points < 26
+ORDER BY rr.lead_laps DESC;
+
+
+-- Задание 2
+
+SELECT
+    d.first_name,
+    d.last_name,
+    COALESCE(SUM(rr.race_points), 0) AS total_points
+FROM drivers d
+LEFT JOIN race_results rr
+    ON d.id = rr.driver_id
+GROUP BY
+    d.id,
+    d.first_name,
+    d.last_name
+ORDER BY total_points DESC;
